@@ -1,16 +1,52 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import ThaliRing from './components/ThaliRing';
 import LogMealButton from './components/LogMealButton';
 import MealListItem from './components/MealListItem';
 import UploadModal from './components/UploadModal';
+import ProfileSetup from './components/ProfileSetup';
+import { getTodaySummary, getUserProfile } from './services/api';
 
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [meals, setMeals] = useState([]);
+  const [macros, setMacros] = useState({ protein: 0, carbs: 0, fats: 0 });
+  const [profileComplete, setProfileComplete] = useState(null); // null = still checking
+  const [checkingProfile, setCheckingProfile] = useState(true);
+
+  const fetchSummary = async () => {
+    try {
+      const data = await getTodaySummary();
+      setMacros(data.percentages);
+    } catch (err) {
+      console.error('Failed to fetch summary:', err);
+    }
+  };
+
+  const checkProfile = async () => {
+    try {
+      const data = await getUserProfile();
+      // Agar body_type set hai, matlab profile complete hai
+      setProfileComplete(!!data.user.body_type);
+    } catch (err) {
+      console.error('Failed to check profile:', err);
+      setProfileComplete(false);
+    } finally {
+      setCheckingProfile(false);
+    }
+  };
+
+  useEffect(() => {
+    checkProfile();
+  }, []);
+
+  useEffect(() => {
+    if (profileComplete) {
+      fetchSummary();
+    }
+  }, [profileComplete]);
 
   const handleMealLogged = (result) => {
-    // Naya meal list mein sabse upar add karo
     setMeals((prev) => [
       {
         mealType: result.meal.meal_type,
@@ -20,15 +56,31 @@ function App() {
       },
       ...prev,
     ]);
+    fetchSummary();
   };
 
+  // Jab tak profile check ho raha hai, loading dikhao
+  if (checkingProfile) {
+    return (
+      <div className="min-h-screen bg-steel flex items-center justify-center">
+        <p className="text-cream/60 font-body">Loading...</p>
+      </div>
+    );
+  }
+
+  // Agar profile complete nahi hai, setup form dikhao
+  if (!profileComplete) {
+    return <ProfileSetup onComplete={() => setProfileComplete(true)} />;
+  }
+
+  // Profile complete hai, dashboard dikhao
   return (
     <div className="min-h-screen bg-steel flex justify-center px-4 py-8">
       <div className="w-full max-w-md flex flex-col gap-8">
         <Header userName="Anshu" />
 
         <div className="flex justify-center">
-          <ThaliRing protein={75} carbs={45} fats={90} />
+          <ThaliRing protein={macros.protein} carbs={macros.carbs} fats={macros.fats} />
         </div>
 
         <LogMealButton onClick={() => setIsModalOpen(true)} />

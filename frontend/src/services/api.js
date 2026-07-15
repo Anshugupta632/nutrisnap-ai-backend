@@ -2,9 +2,8 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000';
 
-// Abhi tak login system nahi bana, isliye ek fixed test user_id use kar rahe hain
-// Baad mein isse real authentication se replace karenge
 export const TEST_USER_ID = 'e54ce6ca-ff0d-43f7-854a-1b327351cbee';
+
 export async function logMealPhoto(photoFile, mealType) {
   const formData = new FormData();
   formData.append('photo', photoFile);
@@ -15,5 +14,15 @@ export async function logMealPhoto(photoFile, mealType) {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+  return response.data;
+}
+
+export async function getTodaySummary() {
+  const response = await axios.get(`${API_BASE_URL}/api/today-summary/${TEST_USER_ID}`);
+  return response.data;
+}
+
+export async function getUserProfile() {
+  const response = await axios.get(`${API_BASE_URL}/api/user/${TEST_USER_ID}`);
   return response.data;
 }

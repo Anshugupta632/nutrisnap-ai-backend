@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const supabase = require('./config/supabase');
 const mealRoutes = require('./routes/mealRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get('/test-db', async (req, res) => {
 });
 
 app.use('/api', mealRoutes);
+app.use('/api', userRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

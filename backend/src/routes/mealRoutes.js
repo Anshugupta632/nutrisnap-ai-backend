@@ -66,6 +66,65 @@ router.post('/log-meal', upload.single('photo'), async (req, res) => {
     console.error('Meal logging error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+
+  
+});
+
+// Aaj ke saare meals ka total nikalne ke liye
+router.get('/today-summary/:user_id', async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    // Aaj ki date range nikalo (midnight se ab tak)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const { data: meals, error } = await supabase
+      .from('meals')
+      .select('total_calories, total_protein, total_carbs, total_fats')
+      .eq('user_id', user_id)
+      .gte('logged_at', startOfDay.toISOString());
+
+    if (error) throw error;
+
+    // User ka target bhi nikalo
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('daily_protein_target, daily_calorie_target, daily_carbs_target, daily_fats_target')
+      .eq('id', user_id)
+      .single();
+
+    if (userError) throw userError;
+
+    // Saare meals ka sum karo
+    const totals = meals.reduce(
+      (acc, meal) => ({
+        calories: acc.calories + Number(meal.total_calories),
+        protein: acc.protein + Number(meal.total_protein),
+        carbs: acc.carbs + Number(meal.total_carbs),
+        fats: acc.fats + Number(meal.total_fats),
+      }),
+      { calories: 0, protein: 0, carbs: 0, fats: 0 }
+    );
+
+    // Default targets agar user ne set nahi kiye (baad mein Somatotype engine se aayenge)
+    const proteinTarget = user.daily_protein_target || 100;
+    const carbsTarget = user.daily_carbs_target || 250;
+    const fatsTarget = user.daily_fats_target || 65;
+
+    res.json({
+      success: true,
+      totals,
+      percentages: {
+        protein: Math.round((totals.protein / proteinTarget) * 100),
+        carbs: Math.round((totals.carbs / carbsTarget) * 100),
+        fats: Math.round((totals.fats / fatsTarget) * 100),
+      },
+    });
+  } catch (error) {
+    console.error('Today summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 module.exports = router;
