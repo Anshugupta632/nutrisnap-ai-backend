@@ -1,11 +1,25 @@
+import { useState } from 'react';
 import Header from './components/Header';
 import ThaliRing from './components/ThaliRing';
 import LogMealButton from './components/LogMealButton';
 import MealListItem from './components/MealListItem';
+import UploadModal from './components/UploadModal';
 
 function App() {
-  const handleLogMeal = () => {
-    console.log('Log Meal clicked - yahan photo upload flow aayega');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [meals, setMeals] = useState([]);
+
+  const handleMealLogged = (result) => {
+    // Naya meal list mein sabse upar add karo
+    setMeals((prev) => [
+      {
+        mealType: result.meal.meal_type,
+        time: new Date(result.meal.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        calories: result.meal.total_calories,
+        itemNames: result.items.map((i) => i.name).join(', '),
+      },
+      ...prev,
+    ]);
   };
 
   return (
@@ -17,20 +31,27 @@ function App() {
           <ThaliRing protein={75} carbs={45} fats={90} />
         </div>
 
-        <LogMealButton onClick={handleLogMeal} />
+        <LogMealButton onClick={() => setIsModalOpen(true)} />
 
         <div className="flex flex-col gap-3">
-        <h2 className="text-cream/70 font-body text-sm tracking-wide uppercase">
-  Today's Meals
-</h2>
-          <MealListItem
-            mealType="Lunch"
-            time="2:00 PM"
-            calories={730}
-            itemNames="Chawal, Dal, Sabzi, Roti"
-          />
+          <h2 className="text-cream/70 font-body text-sm tracking-wide uppercase">
+            Today's Meals
+          </h2>
+          {meals.length === 0 ? (
+            <p className="text-cream/40 text-sm font-body text-center py-4">
+              No meals logged yet. Tap "Log Meal" to get started.
+            </p>
+          ) : (
+            meals.map((meal, i) => <MealListItem key={i} {...meal} />)
+          )}
         </div>
       </div>
+
+      <UploadModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleMealLogged}
+      />
     </div>
   );
 }
