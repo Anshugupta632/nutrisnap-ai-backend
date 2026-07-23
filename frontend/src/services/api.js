@@ -31,3 +31,14 @@ export async function getAvatarStatus() {
   const response = await axios.get(`${API_BASE_URL}/api/avatar/${TEST_USER_ID}`);
   return response.data;
 }
+
+export async function scanLabel(photoFile) {
+  const formData = new FormData();
+  formData.append('photo', photoFile);
+
+  const response = await axios.post(`${API_BASE_URL}/api/scan-label`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+  return response.data;
+}

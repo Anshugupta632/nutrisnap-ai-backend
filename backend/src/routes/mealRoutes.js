@@ -4,6 +4,7 @@ const router = express.Router();
 const { analyzeMealPhoto } = require('../services/visionService');
 const supabase = require('../config/supabase');
 const { updateAvatarAfterMeal } = require('../services/avatarService');
+const { scanIngredientLabel } = require('../services/sugarScannerService');
 
 // Multer setup - photo ko 'uploads' folder mein temporarily save karega
 const upload = multer({ dest: 'uploads/' });
@@ -128,6 +129,27 @@ router.get('/today-summary/:user_id', async (req, res) => {
     });
   } catch (error) {
     console.error('Today summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/scan-label', upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Photo nahi mili request mein' });
+    }
+
+    const filePath = req.file.path;
+    const mimeType = req.file.mimetype;
+
+    const result = await scanIngredientLabel(filePath, mimeType);
+
+    const fs = require('fs');
+    fs.unlinkSync(filePath);
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Label scan error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

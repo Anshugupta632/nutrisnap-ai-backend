@@ -7,9 +7,11 @@ import UploadModal from './components/UploadModal';
 import ProfileSetup from './components/ProfileSetup';
 import Avatar from './components/Avatar';
 import { getTodaySummary, getUserProfile, getAvatarStatus } from './services/api';
+import LabelScannerModal from './components/LabelScannerModal';
 
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [meals, setMeals] = useState([]);
   const [macros, setMacros] = useState({ protein: 0, carbs: 0, fats: 0 });
   const [avatar, setAvatar] = useState(null);
@@ -102,6 +104,16 @@ function App() {
 
         <LogMealButton onClick={() => setIsModalOpen(true)} />
 
+        
+
+        <button
+          onClick={() => setIsScannerOpen(true)}
+          className="w-full py-3 rounded-xl bg-dabba border border-cream/10 hover:border-haldi/40 transition-colors flex items-center justify-center gap-2 text-cream/80 font-body text-sm"
+        >
+          <span>🔍</span>
+          <span>Scan a Packet Label</span>
+        </button>
+
         <div className="flex flex-col gap-3">
           <h2 className="text-cream/70 font-body text-sm tracking-wide uppercase">
             Today's Meals
@@ -120,6 +132,11 @@ function App() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleMealLogged}
+      />
+
+      <LabelScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
       />
     </div>
   );
