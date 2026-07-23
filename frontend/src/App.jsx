@@ -6,8 +6,8 @@ import MealListItem from './components/MealListItem';
 import UploadModal from './components/UploadModal';
 import ProfileSetup from './components/ProfileSetup';
 import Avatar from './components/Avatar';
-import { getTodaySummary, getUserProfile, getAvatarStatus } from './services/api';
 import LabelScannerModal from './components/LabelScannerModal';
+import { getTodaySummary, getUserProfile, getAvatarStatus, TEST_USER_ID } from './services/api';
 
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -104,8 +104,6 @@ function App() {
 
         <LogMealButton onClick={() => setIsModalOpen(true)} />
 
-        
-
         <button
           onClick={() => setIsScannerOpen(true)}
           className="w-full py-3 rounded-xl bg-dabba border border-cream/10 hover:border-haldi/40 transition-colors flex items-center justify-center gap-2 text-cream/80 font-body text-sm"
@@ -113,6 +111,15 @@ function App() {
           <span>🔍</span>
           <span>Scan a Packet Label</span>
         </button>
+
+        <a
+          href={`http://localhost:5000/api/monthly-report/${TEST_USER_ID}`}
+          download
+          className="w-full py-3 rounded-xl bg-dabba border border-cream/10 hover:border-haldi/40 transition-colors flex items-center justify-center gap-2 text-cream/80 font-body text-sm"
+        >
+          <span>📄</span>
+          <span>Download Monthly Report</span>
+        </a>
 
         <div className="flex flex-col gap-3">
           <h2 className="text-cream/70 font-body text-sm tracking-wide uppercase">
