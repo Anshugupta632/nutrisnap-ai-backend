@@ -5,12 +5,14 @@ import LogMealButton from './components/LogMealButton';
 import MealListItem from './components/MealListItem';
 import UploadModal from './components/UploadModal';
 import ProfileSetup from './components/ProfileSetup';
-import { getTodaySummary, getUserProfile } from './services/api';
+import Avatar from './components/Avatar';
+import { getTodaySummary, getUserProfile, getAvatarStatus } from './services/api';
 
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [meals, setMeals] = useState([]);
   const [macros, setMacros] = useState({ protein: 0, carbs: 0, fats: 0 });
+  const [avatar, setAvatar] = useState(null);
   const [profileComplete, setProfileComplete] = useState(null); // null = still checking
   const [checkingProfile, setCheckingProfile] = useState(true);
 
@@ -23,10 +25,18 @@ function App() {
     }
   };
 
+  const fetchAvatar = async () => {
+    try {
+      const data = await getAvatarStatus();
+      setAvatar(data.avatar);
+    } catch (err) {
+      console.error('Failed to fetch avatar:', err);
+    }
+  };
+
   const checkProfile = async () => {
     try {
       const data = await getUserProfile();
-      // Agar body_type set hai, matlab profile complete hai
       setProfileComplete(!!data.user.body_type);
     } catch (err) {
       console.error('Failed to check profile:', err);
@@ -43,6 +53,7 @@ function App() {
   useEffect(() => {
     if (profileComplete) {
       fetchSummary();
+      fetchAvatar();
     }
   }, [profileComplete]);
 
@@ -57,9 +68,9 @@ function App() {
       ...prev,
     ]);
     fetchSummary();
+    fetchAvatar();
   };
 
-  // Jab tak profile check ho raha hai, loading dikhao
   if (checkingProfile) {
     return (
       <div className="min-h-screen bg-steel flex items-center justify-center">
@@ -68,12 +79,10 @@ function App() {
     );
   }
 
-  // Agar profile complete nahi hai, setup form dikhao
   if (!profileComplete) {
     return <ProfileSetup onComplete={() => setProfileComplete(true)} />;
   }
 
-  // Profile complete hai, dashboard dikhao
   return (
     <div className="min-h-screen bg-steel flex justify-center px-4 py-8">
       <div className="w-full max-w-md flex flex-col gap-8">
@@ -82,6 +91,14 @@ function App() {
         <div className="flex justify-center">
           <ThaliRing protein={macros.protein} carbs={macros.carbs} fats={macros.fats} />
         </div>
+
+        {avatar && (
+          <Avatar
+            stamina={avatar.stamina}
+            strengthPoints={avatar.strength_points}
+            deficitDays={avatar.protein_deficit_days}
+          />
+        )}
 
         <LogMealButton onClick={() => setIsModalOpen(true)} />
 

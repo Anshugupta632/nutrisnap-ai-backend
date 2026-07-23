@@ -53,6 +53,36 @@ router.get('/user/:user_id', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+
+  // Avatar ka current status nikalo
+router.get('/avatar/:user_id', async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    let { data: avatar, error } = await supabase
+      .from('avatar_stats')
+      .select('*')
+      .eq('user_id', user_id)
+      .single();
+
+    // Agar avatar row exist nahi karti, default create kar do
+    if (error && error.code === 'PGRST116') {
+      const { data: newAvatar, error: createError } = await supabase
+        .from('avatar_stats')
+        .insert({ user_id })
+        .select()
+        .single();
+      if (createError) throw createError;
+      avatar = newAvatar;
+    } else if (error) {
+      throw error;
+    }
+
+    res.json({ success: true, avatar });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 });
 });
 

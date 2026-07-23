@@ -26,3 +26,8 @@ export async function getUserProfile() {
   const response = await axios.get(`${API_BASE_URL}/api/user/${TEST_USER_ID}`);
   return response.data;
 }
+
+export async function getAvatarStatus() {
+  const response = await axios.get(`${API_BASE_URL}/api/avatar/${TEST_USER_ID}`);
+  return response.data;
+}

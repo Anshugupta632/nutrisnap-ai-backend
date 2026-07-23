@@ -48,6 +48,7 @@ async function analyzeMealPhoto(filePath, mimeType) {
   });
 
 
+
   const responseText = response.choices[0].message.content;
   let cleanedText = responseText.replace(/```json|```/g, '').trim();
 

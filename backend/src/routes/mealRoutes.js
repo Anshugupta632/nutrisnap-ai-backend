@@ -3,6 +3,7 @@ const multer = require('multer');
 const router = express.Router();
 const { analyzeMealPhoto } = require('../services/visionService');
 const supabase = require('../config/supabase');
+const { updateAvatarAfterMeal } = require('../services/avatarService');
 
 // Multer setup - photo ko 'uploads' folder mein temporarily save karega
 const upload = multer({ dest: 'uploads/' });
@@ -58,10 +59,14 @@ router.post('/log-meal', upload.single('photo'), async (req, res) => {
     if (itemsError) throw itemsError;
 
     // Temp photo file delete kar do (ab zaroorat nahi)
+    // Temp photo file delete kar do (ab zaroorat nahi)
     const fs = require('fs');
     fs.unlinkSync(filePath);
 
-    res.json({ success: true, meal: mealData, items: nutritionData.items });
+    // Avatar stats update karo protein intake ke hisaab se
+    const avatarStats = await updateAvatarAfterMeal(user_id);
+
+    res.json({ success: true, meal: mealData, items: nutritionData.items, avatar: avatarStats });
   } catch (error) {
     console.error('Meal logging error:', error);
     res.status(500).json({ success: false, error: error.message });
