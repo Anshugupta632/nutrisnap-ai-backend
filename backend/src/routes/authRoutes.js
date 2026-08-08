@@ -1,6 +1,6 @@
 ﻿const express = require('express');
 const router = express.Router();
-const { supabaseAuth, supabaseService } = require('../config/supabase');
+const { supabaseAuth, supabaseAuth: supabaseService } = require('../config/supabase');
 
 /**
  * Helper to validate email format
