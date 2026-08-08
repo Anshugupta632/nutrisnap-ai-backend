@@ -45,7 +45,7 @@ function generateMonthlyReport(userData, meals, avatarStats) {
       );
       doc.moveDown(0.2);
 
-      // Page break agar zaroori ho
+      // Page break if needed
       if (doc.y > 700) {
         doc.addPage();
       }

@@ -1,13 +1,57 @@
-const OpenAI = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 require('dotenv').config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Hidden sugar names jo ingredient labels mein chhupe hote hain
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error('GEMINI_API_KEY missing in .env file!');
+}
+
+function fileToGenerativePart(filePath, mimeType) {
+  return {
+    inlineData: {
+      data: fs.readFileSync(filePath).toString('base64'),
+      mimeType,
+    },
+  };
+}
+
+/**
+ * Safely parses JSON from Gemini response
+ * Throws meaningful error if malformed JSON
+ */
+function parseGeminiJSON(responseText, context = 'label scan') {
+  const cleanedText = responseText.replace(/```json|```/g, '').trim();
+
+  if (!cleanedText) {
+    throw new Error('AI returned no response. Please try again.');
+  }
+
+  try {
+    return JSON.parse(cleanedText);
+  } catch (parseError) {
+    // Log raw response for debugging
+    console.error(`[${context}] JSON parse failed. Raw response:`, responseText);
+    console.error(`[${context}] Cleaned text:`, cleanedText);
+    console.error(`[${context}] Parse error:`, parseError.message);
+
+    // Detect common issues
+    if (cleanedText.includes('SAFETY') || cleanedText.includes('safety') || cleanedText.includes('blocked')) {
+      throw new Error('Photo content violates safety policy. Try a different photo.');
+    }
+    if (cleanedText.includes('quota') || cleanedText.includes('rate limit')) {
+      throw new Error('AI service is busy. Please try again later.');
+    }
+    if (!cleanedText.startsWith('{') || !cleanedText.endsWith('}')) {
+      throw new Error('AI response format is invalid. Please try again.');
+    }
+
+    throw new Error('Could not understand AI response. Please try again.');
+  }
+}
+
+// Hidden sugar names found in ingredient labels
 const HIDDEN_SUGAR_NAMES = [
   'maltodextrin', 'dextrose', 'corn syrup', 'high fructose corn syrup',
   'sucrose', 'glucose', 'fructose', 'fruit juice concentrate',
@@ -16,7 +60,7 @@ const HIDDEN_SUGAR_NAMES = [
   'dextrin', 'maltose', 'galactose', 'lactose', 'corn sweetener',
 ];
 
-// Healthy alternatives suggest karne ke liye chhota mapping
+// Mapping for healthy alternatives
 const ALTERNATIVES = {
   'sweetened cereal / oats': 'Plain oats with fresh fruit for natural sweetness',
   'flavored yogurt': 'Plain curd/yogurt with honey (in moderation)',
@@ -26,41 +70,26 @@ const ALTERNATIVES = {
 };
 
 async function scanIngredientLabel(filePath, mimeType) {
-  const base64Image = fs.readFileSync(filePath).toString('base64');
-  const dataUri = `data:${mimeType};base64,${base64Image}`;
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-  const prompt = `Tum ek OCR assistant ho. Is packaged food label ki photo se saara ingredients list text ko exactly nikalo jaisa likha hai.
+  const prompt = `You are an OCR assistant. Extract the complete ingredients list text from this packaged food label photo exactly as written.
 
-  Response SIRF is JSON format mein do, koi extra text nahi:
-  {
-    "product_name": "agar dikhe toh product ka naam",
-    "ingredients_text": "poora ingredients list jo photo mein dikha, ek single string mein"
-  }
+Response ONLY in this JSON format, no extra text:
+{
+  "product_name": "product name if visible",
+  "ingredients_text": "complete ingredients list from photo as a single string"
+}
 
-  Agar ingredients list nahi dikh rahi ya photo unclear hai, "ingredients_text" ko empty string rakho.`;
+If ingredients list is not visible or photo is unclear, keep "ingredients_text" as empty string.`;
 
-  const response = await openai.chat.completions.create({
-    model: 'google/gemma-4-26b-a4b-it:free',
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUri } },
-        ],
-      },
-    ],
-  });
+  const imagePart = fileToGenerativePart(filePath, mimeType);
 
-  const responseText = response.choices[0].message.content;
-  let cleanedText = responseText.replace(/```json|```/g, '').trim();
-  const firstBrace = cleanedText.indexOf('{');
-  const lastBrace = cleanedText.lastIndexOf('}');
-  cleanedText = cleanedText.substring(firstBrace, lastBrace + 1);
+  const result = await model.generateContent([prompt, imagePart]);
+  const responseText = result.response.text();
 
-  const ocrResult = JSON.parse(cleanedText);
+  const ocrResult = parseGeminiJSON(responseText, 'label scan');
 
-  // Ab dictionary se match karo - yeh part AI pe depend nahi karta, isliye reliable hai
+  // Match against dictionary - this part doesn't depend on AI, so it's reliable
   const foundSugars = HIDDEN_SUGAR_NAMES.filter((sugar) =>
     ocrResult.ingredients_text.toLowerCase().includes(sugar.toLowerCase())
   );

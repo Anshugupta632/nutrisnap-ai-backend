@@ -1,36 +1,51 @@
-const express = require('express');
+﻿const express = require('express');
 const multer = require('multer');
+const fs = require('fs');
 const router = express.Router();
 const { analyzeMealPhoto } = require('../services/visionService');
-const supabase = require('../config/supabase');
+const { supabaseService: supabase } = require('../config/supabase');
 const { updateAvatarAfterMeal } = require('../services/avatarService');
 const { scanIngredientLabel } = require('../services/sugarScannerService');
+const { authMiddleware } = require('../middleware/auth');
 
-// Multer setup - photo ko 'uploads' folder mein temporarily save karega
+// Multer setup - photo temporarily saved to 'uploads' folder
 const upload = multer({ dest: 'uploads/' });
 
+// Apply auth middleware to all routes
+router.use(authMiddleware);
+
 router.post('/log-meal', upload.single('photo'), async (req, res) => {
+  let mealId = null;
+  let filePath = null;
+  const userId = req.user.id; // Verified user_id from JWT
+
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'Photo nahi mili request mein' });
+      return res.status(400).json({ success: false, error: 'Photo not found in request' });
     }
 
-    const { user_id, meal_type } = req.body;
+    const { meal_type } = req.body;
 
-    if (!user_id || !meal_type) {
-      return res.status(400).json({ success: false, error: 'user_id aur meal_type zaroori hai' });
+    if (!meal_type) {
+      return res.status(400).json({ success: false, error: 'meal_type is required' });
     }
 
-    // Gemini se nutrition analysis karwao
-    const filePath = req.file.path;
+    // Validate meal_type
+    const validMealTypes = ['breakfast', 'lunch', 'dinner', 'snack'];
+    if (!validMealTypes.includes(meal_type)) {
+      return res.status(400).json({ success: false, error: 'Invalid meal_type' });
+    }
+
+    // Get nutrition analysis from Gemini
+    filePath = req.file.path;
     const mimeType = req.file.mimetype;
     const nutritionData = await analyzeMealPhoto(filePath, mimeType);
 
-    // Meal ko database mein save karo
+    // Save meal to database
     const { data: mealData, error: mealError } = await supabase
       .from('meals')
       .insert({
-        user_id,
+        user_id: userId,
         meal_type,
         log_method: 'photo',
         total_calories: nutritionData.total_calories,
@@ -43,7 +58,9 @@ router.post('/log-meal', upload.single('photo'), async (req, res) => {
 
     if (mealError) throw mealError;
 
-    // Individual items ko meal_items table mein save karo
+    mealId = mealData.id;
+
+    // Save individual items to meal_items table
     const itemsToInsert = nutritionData.items.map((item) => ({
       meal_id: mealData.id,
       item_name: item.name,
@@ -57,52 +74,58 @@ router.post('/log-meal', upload.single('photo'), async (req, res) => {
 
     const { error: itemsError } = await supabase.from('meal_items').insert(itemsToInsert);
 
-    if (itemsError) throw itemsError;
+    if (itemsError) {
+      // Rollback: delete the meal if items insert fails
+      await supabase.from('meals').delete().eq('id', mealId);
+      throw itemsError;
+    }
 
-    // Temp photo file delete kar do (ab zaroorat nahi)
-    // Temp photo file delete kar do (ab zaroorat nahi)
-    const fs = require('fs');
+    // Delete temp photo file (no longer needed)
     fs.unlinkSync(filePath);
+    filePath = null;
 
-    // Avatar stats update karo protein intake ke hisaab se
-    const avatarStats = await updateAvatarAfterMeal(user_id);
+    // Update avatar stats based on protein intake
+    const avatarStats = await updateAvatarAfterMeal(userId);
 
     res.json({ success: true, meal: mealData, items: nutritionData.items, avatar: avatarStats });
   } catch (error) {
     console.error('Meal logging error:', error);
+    // Cleanup temp file on error
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
     res.status(500).json({ success: false, error: error.message });
   }
-
   
 });
 
-// Aaj ke saare meals ka total nikalne ke liye
-router.get('/today-summary/:user_id', async (req, res) => {
+// Get today's meal totals
+router.get('/today-summary', async (req, res) => {
   try {
-    const { user_id } = req.params;
+    const userId = req.user.id;
 
-    // Aaj ki date range nikalo (midnight se ab tak)
+    // Get today's date range (midnight to now)
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
     const { data: meals, error } = await supabase
       .from('meals')
       .select('total_calories, total_protein, total_carbs, total_fats')
-      .eq('user_id', user_id)
+      .eq('user_id', userId)
       .gte('logged_at', startOfDay.toISOString());
 
     if (error) throw error;
 
-    // User ka target bhi nikalo
+    // Get user's targets
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('daily_protein_target, daily_calorie_target, daily_carbs_target, daily_fats_target')
-      .eq('id', user_id)
+      .eq('id', userId)
       .single();
 
     if (userError) throw userError;
 
-    // Saare meals ka sum karo
+    // Sum all meals
     const totals = meals.reduce(
       (acc, meal) => ({
         calories: acc.calories + Number(meal.total_calories),
@@ -113,9 +136,9 @@ router.get('/today-summary/:user_id', async (req, res) => {
       { calories: 0, protein: 0, carbs: 0, fats: 0 }
     );
 
-    // Default targets agar user ne set nahi kiye (baad mein Somatotype engine se aayenge)
+    // Default targets if user hasn't set them (will come from Somatotype engine later)
     const proteinTarget = user.daily_protein_target || 100;
-    const carbsTarget = user.daily_carbs_target || 250;
+    const carbsTarget = user.daily_calorie_target || 250;
     const fatsTarget = user.daily_fats_target || 65;
 
     res.json({
@@ -134,22 +157,47 @@ router.get('/today-summary/:user_id', async (req, res) => {
 });
 
 router.post('/scan-label', upload.single('photo'), async (req, res) => {
+  let filePath = null;
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'Photo nahi mili request mein' });
+      return res.status(400).json({ success: false, error: 'Photo not found in request' });
     }
 
-    const filePath = req.file.path;
+    filePath = req.file.path;
     const mimeType = req.file.mimetype;
 
     const result = await scanIngredientLabel(filePath, mimeType);
 
-    const fs = require('fs');
     fs.unlinkSync(filePath);
+    filePath = null;
 
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Label scan error:', error);
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Meal history endpoint - get all user meals
+router.get('/meal-history', async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: meals, error } = await supabase
+      .from('meals')
+      .select('*, meal_items(*)')
+      .eq('user_id', userId)
+      .order('logged_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    res.json({ success: true, meals });
+  } catch (error) {
+    console.error('Meal history error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
