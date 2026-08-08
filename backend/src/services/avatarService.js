@@ -1,4 +1,4 @@
-﻿const { supabaseService: supabase } = require('../config/supabase');
+﻿const { supabaseAuth: supabase } = require('../config/supabase');
 
 async function updateAvatarAfterMeal(userId) {
   // Get user target and today's total
