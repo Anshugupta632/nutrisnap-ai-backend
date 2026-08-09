@@ -3,7 +3,13 @@ require('dotenv').config();
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const VISION_MODEL = 'google/gemma-4-31b-it:free';
+
+// Try these free vision models in order - if one is rate-limited, fall back to the next
+const VISION_MODELS = [
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+];
 
 if (!OPENROUTER_API_KEY) {
   throw new Error('OPENROUTER_API_KEY missing in .env file!');
@@ -41,11 +47,12 @@ function parseAIJSON(responseText, context = 'meal analysis') {
     if (!cleanedText.startsWith('{') || !cleanedText.endsWith('}')) {
       throw new Error('AI response format is invalid. Please try again.');
     }
+
     throw new Error('Could not understand AI response. Please try again.');
   }
 }
 
-async function callOpenRouterVision(prompt, imageDataUrl) {
+async function tryOneModel(model, prompt, imageDataUrl) {
   const response = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
@@ -53,7 +60,7 @@ async function callOpenRouterVision(prompt, imageDataUrl) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: VISION_MODEL,
+      model,
       messages: [
         {
           role: 'user',
@@ -68,19 +75,45 @@ async function callOpenRouterVision(prompt, imageDataUrl) {
 
   if (!response.ok) {
     const errText = await response.text();
-    console.error('OpenRouter API error:', response.status, errText);
-    if (response.status === 429) {
-      throw new Error('AI service is busy. Please try again later.');
-    }
-    throw new Error('AI service error. Please try again.');
+    const error = new Error(`OpenRouter error for ${model}: ${response.status}`);
+    error.status = response.status;
+    error.rawBody = errText;
+    throw error;
   }
 
   const data = await response.json();
   const text = data.choices?.[0]?.message?.content;
   if (!text) {
-    throw new Error('AI returned no response. Please try again.');
+    throw new Error(`No content returned from ${model}`);
   }
   return text;
+}
+
+/**
+ * Tries each model in VISION_MODELS in order.
+ * Falls through to the next on 429 (rate limit) or 5xx errors.
+ * Any other error (e.g. 401 bad key) stops immediately.
+ */
+async function callOpenRouterVision(prompt, imageDataUrl) {
+  let lastError = null;
+
+  for (const model of VISION_MODELS) {
+    try {
+      return await tryOneModel(model, prompt, imageDataUrl);
+    } catch (err) {
+      lastError = err;
+      console.error(`Vision model failed: ${model}`, err.status || '', err.rawBody || err.message);
+
+      const isRetryable = err.status === 429 || (err.status >= 500 && err.status < 600);
+      if (!isRetryable) {
+        break; // Non-retryable error (e.g. bad API key) - stop trying other models
+      }
+      // otherwise loop continues to next model
+    }
+  }
+
+  console.error('All vision models failed. Last error:', lastError?.message);
+  throw new Error('AI service is busy right now. Please try again in a minute.');
 }
 
 async function analyzeMealPhoto(filePath, mimeType) {
