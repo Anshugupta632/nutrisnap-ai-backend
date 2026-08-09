@@ -9,29 +9,32 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment variables.');
 }
 
-if (!supabaseAnonKey) {
-  console.warn('SUPABASE_ANON_KEY not set - RLS-respecting client will fall back to service key, which bypasses RLS.');
+// Admin/service client - service role key, bypasses RLS.
+// Used for: admin.createUser, token verification (getUser), and DB writes needing RLS bypass.
+// IMPORTANT: never call .auth.signInWithPassword / .auth.signOut / .auth.refreshSession
+// on this client - it is a shared singleton across all requests, and those calls
+// would mutate its session state, silently downgrading it for other in-flight requests.
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
+
+// Factory - creates a brand new throwaway client for user-auth flows
+// (login, signup auto-login, refresh, logout). A fresh client per call means
+// signInWithPassword etc. can never pollute the shared admin client's state.
+function createAuthClient() {
+  return createClient(supabaseUrl, supabaseAnonKey || supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
-// Admin client - service role key, bypasses RLS.
-// Use for: creating users (signup), verifying tokens (auth middleware).
-const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
-
-// Regular client - anon key, respects RLS.
-// Use for: normal DB reads/writes tied to a logged-in user.
-const supabaseService = createClient(supabaseUrl, supabaseAnonKey || supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
-
 module.exports = {
-  supabaseAuth,
-  supabaseService,
+  supabaseAuth: supabaseAdmin,
+  supabaseService: supabaseAdmin,
+  createAuthClient,
 };

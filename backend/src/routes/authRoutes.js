@@ -1,6 +1,6 @@
 ﻿const express = require('express');
 const router = express.Router();
-const { supabaseAuth, supabaseAuth: supabaseService } = require('../config/supabase');
+const { supabaseAuth, supabaseService, createAuthClient } = require('../config/supabase');
 
 /**
  * Helper to validate email format
@@ -76,7 +76,7 @@ router.post('/signup', async (req, res) => {
 
     // Admin createUser does not return an active session token.
     // Authenticate the user immediately to issue access and refresh tokens.
-    const { data: sessionData, error: sessionError } = await supabaseAuth.auth.signInWithPassword({
+    const { data: sessionData, error: sessionError } = await createAuthClient().auth.signInWithPassword({
       email: trimmedEmail,
       password,
     });
@@ -112,7 +112,7 @@ router.post('/login', async (req, res) => {
 
     const trimmedEmail = email.trim().toLowerCase();
 
-    const { data, error } = await supabaseAuth.auth.signInWithPassword({
+    const { data, error } = await createAuthClient().auth.signInWithPassword({
       email: trimmedEmail,
       password,
     });
@@ -163,7 +163,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Refresh token is required' });
     }
 
-    const { data, error } = await supabaseAuth.auth.refreshSession({ refresh_token });
+    const { data, error } = await createAuthClient().auth.refreshSession({ refresh_token });
 
     if (error) {
       return res.status(401).json({ success: false, error: error.message || 'Invalid or expired refresh token' });
@@ -182,7 +182,7 @@ router.post('/logout', async (req, res) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      await supabaseAuth.auth.signOut(token);
+      await createAuthClient().auth.signOut(token);
     }
   } catch (err) {
     console.warn('Supabase signout warning:', err.message);
