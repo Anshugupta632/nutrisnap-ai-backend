@@ -3,7 +3,7 @@ require('dotenv').config();
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const VISION_MODEL = 'meta-llama/llama-3.2-11b-vision-instruct:free';
+const VISION_MODEL = 'google/gemma-4-31b-it:free';
 
 if (!OPENROUTER_API_KEY) {
   throw new Error('OPENROUTER_API_KEY missing in .env file!');
