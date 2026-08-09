@@ -24,17 +24,20 @@ router.post('/setup-profile', async (req, res) => {
     // Height, age, gender optional but needed for better calculation
     const targets = calculateTargets(body_type, weight_kg, height_cm, age, gender);
 
+    // Use UPDATE, not upsert - the user row already exists from signup.
+    // Upsert would fail NOT NULL checks on columns (like email) not in this payload.
     const { data, error } = await supabase
       .from('users')
-      .upsert({
-        id: userId,
+      .update({
         body_type,
         weight_kg,
         height_cm,
         age,
         gender,
+        updated_at: new Date().toISOString(),
         ...targets,
       })
+      .eq('id', userId)
       .select()
       .single();
 
