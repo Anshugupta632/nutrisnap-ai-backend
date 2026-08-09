@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { setupProfile } from '../services/api';
 
@@ -47,7 +47,7 @@ function ProfileSetup({ onComplete }) {
         age: age ? Number(age) : undefined,
         gender,
       });
-      onComplete(response.data.user);
+      onComplete(response.user);
     } catch (err) {
       setError('Something went wrong. Please try again.');
       console.error(err);
@@ -116,7 +116,7 @@ function ProfileSetup({ onComplete }) {
                       animate={{ scale: 1 }}
                       className="text-haldi text-xs"
                     >
-                      ✓
+                      âœ“
                     </motion.span>
                   )}
                 </div>
@@ -199,7 +199,7 @@ function ProfileSetup({ onComplete }) {
               exit={{ opacity: 0, y: -10 }}
               className="bg-masala/20 border border-masala/40 rounded-xl p-3 text-masala text-xs font-body font-medium flex items-center gap-2"
             >
-              <span>⚠️</span> {error}
+              <span>âš ï¸</span> {error}
             </motion.div>
           )}
         </AnimatePresence>
