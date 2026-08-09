@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import ThaliRing from './components/ThaliRing';
@@ -6,7 +6,7 @@ import LogMealButton from './components/LogMealButton';
 import MealListItem from './components/MealListItem';
 import UploadModal from './components/UploadModal';
 import ProfileSetup from './components/ProfileSetup';
-import Avatar from './components/Avatar';
+import Avatar from './components/Avatar3D';
 import LabelScannerModal from './components/LabelScannerModal';
 import Login from './components/Login';
 import { BackgroundEffect, ThaliRingSkeleton, CardSkeleton } from './components/BackgroundEffect';
@@ -254,6 +254,7 @@ function App() {
                     stamina={avatar.stamina}
                     strengthPoints={avatar.strength_points}
                     deficitDays={avatar.protein_deficit_days}
+                    user={user}
                   />
                 </motion.div>
               )}
@@ -343,3 +344,4 @@ function App() {
 }
 
 export default App;
+
